@@ -40,6 +40,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 @property(nonatomic) NSMutableArray *servicesThatNeedDiscovered;
 @property(nonatomic) NSMutableArray *characteristicsThatNeedDiscovered;
 @property(nonatomic) NSMutableDictionary *dataWaitingToWriteWithoutResponse;
+@property (strong, nonatomic) NSMutableArray<CBPeripheral *> *connectedPeripherals;
 @property(nonatomic) LogLevel logLevel;
 @end
 
@@ -56,6 +57,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
     instance.servicesThatNeedDiscovered = [NSMutableArray new];
     instance.characteristicsThatNeedDiscovered = [NSMutableArray new];
     instance.dataWaitingToWriteWithoutResponse = [NSMutableDictionary new];
+    instance.connectedPeripherals = [NSMutableArray new];
     instance.logLevel = emergency;
 
     // STATE
@@ -443,6 +445,12 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 
 - (CBPeripheral *)findPeripheral:(NSString *)remoteId
 {
+    for (CBPeripheral *peripheral in _connectedPeripherals) {
+        if ([peripheral.identifier.UUIDString isEqualToString:remoteId]) {
+            return peripheral;
+        }
+    }
+    
     NSArray<CBPeripheral *> *peripherals =
         [_centralManager retrievePeripheralsWithIdentifiers:@[ [[NSUUID alloc] initWithUUIDString:remoteId] ]];
     CBPeripheral *peripheral;
@@ -601,6 +609,10 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 - (void)centralManager:(CBCentralManager *)central didConnectPeripheral:(CBPeripheral *)peripheral
 {
     NSLog(@"didConnectPeripheral");
+    //store peripheral
+    if (![_connectedPeripherals containsObject:peripheral]) {
+        [_connectedPeripherals addObject:peripheral];
+    }
 
     // Register self as delegate for peripheral
     peripheral.delegate = self;
@@ -626,6 +638,9 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
     // Send connection state
     [_channel invokeMethod:@"DeviceState"
                  arguments:[self toFlutterData:[self toDeviceStateProto:peripheral state:peripheral.state]]];
+    
+    // Remove from connected
+    [_connectedPeripherals removeObject:peripheral];
 }
 
 - (void)centralManager:(CBCentralManager *)central
